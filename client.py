@@ -9,9 +9,9 @@ OP_GET = 0x01
 
 
 def send_packet(sock: socket.socket, op: int, data: bytes) -> None:
-    header = struct.pack(HEADER_FORMAT, len(data), op)
+    header = struct.pack(HEADER_FORMAT, len(data), op) # pack() é usado para converter os dados em bytes
     packet = header + data
-    sock.sendall(packet)
+    sock.sendall(packet) # envia os dados para o servidor
 
 
 def recv_exact(sock: socket.socket, n: int) -> bytes | None:

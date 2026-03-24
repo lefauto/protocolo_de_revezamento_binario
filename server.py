@@ -17,18 +17,17 @@ async def read_exactly(reader: asyncio.StreamReader, n: int) -> bytes | None:
         data = await reader.readexactly(n)
         return data
     except asyncio.IncompleteReadError:
-        # Conexão fechada antes de chegar tudo
         return None
 
 
 async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-    global stored_message # globaliza a variável para que todos os clientes possam acessá-la
+    global stored_message
     peer = writer.get_extra_info("peername")
     print(f"Novo cliente conectado: {peer}")
 
     try:
         while True:
-            # 1) Ler exatamente o cabeçalho (3 bytes)
+            # ler exatamente o cabeçalho (3 bytes)
             header = await read_exactly(reader, HEADER_SIZE)
             if header is None:
                 print(f"Conexão encerrada por {peer}")
@@ -36,7 +35,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
 
             payload_size, op = struct.unpack(HEADER_FORMAT, header)
 
-            # 2) Ler exatamente o payload prometido
+            # ler exatamente o payload prometido
             data = b""
             if payload_size > 0:
                 data = await read_exactly(reader, payload_size)
@@ -45,23 +44,20 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                     break
 
             if op == OP_SEND:
-                # Operação: ENVIAR mensagem
                 mensagem = data.decode("utf-8", errors="replace")
                 print(f"[{peer}] ENVIAR: {mensagem!r}")
 
-                async with lock:
+                async with lock: # lockando a variável
                     stored_message = data  # guardamos em bytes UTF‑8
 
-                # Opcional: responder ACK vazio
+                # ajuda ao cliente a saber que a mensagem foi enviada
                 ack_header = struct.pack(HEADER_FORMAT, 0, OP_SEND)
                 writer.write(ack_header)
                 await writer.drain()
 
             elif op == OP_GET:
-                # Operação: RECUPERAR mensagem
                 async with lock:
                     if stored_message is None:
-                        # Nenhuma mensagem armazenada
                         resp_payload = b""
                         payload_len = 0
                     else:
@@ -76,7 +72,6 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 await writer.drain()
 
             else:
-                # Operação inválida: fecha a conexão
                 print(f"Operação desconhecida {op} de {peer}, fechando conexão.")
                 break
 
@@ -89,12 +84,12 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
 
 
 async def main(host: str = "0.0.0.0", port: int = 8888) -> None:
-    server = await asyncio.start_server(handle_client, host, port)
-    addr = ", ".join(str(sock.getsockname()) for sock in server.sockets)
+    server = await asyncio.start_server(handle_client, host, port) # inicia o servidor e retorna um objeto Server
+    addr = ", ".join(str(sock.getsockname()) for sock in server.sockets) 
     print(f"Servidor ouvindo em {addr}")
 
     async with server:
-        await server.serve_forever()
+        await server.serve_forever() # serve eternamente, aguardando conexões e lidando com elas
 
 
 if __name__ == "__main__":
